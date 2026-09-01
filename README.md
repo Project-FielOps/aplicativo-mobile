@@ -99,17 +99,20 @@ cd aplicativo-mobile && npm install && npm start
 > No Windows, o firewall costuma bloquear entrada nas portas **8080** e **8081**. Se o celular não
 > conectar no Expo Go, libere as duas para a rede privada.
 
-### Credenciais de desenvolvimento
+### Usuários de desenvolvimento
 
-Criadas pelo seed da API (apenas no perfil `dev`, com o banco vazio):
+O seed da API cria um usuário por papel — **apenas** no perfil `dev` e só com o banco vazio.
 
-| Perfil | E-mail | Senha | Usa |
-|---|---|---|---|
-| `ADMIN` | `admin@fieldops.local` | `Admin@12345` | Web |
-| `SUPERVISOR` | `supervisor@fieldops.local` | `Supervisor@123` | Web |
-| `TECHNICIAN` | `technician@fieldops.local` | `Technician@123` | **Mobile** |
-| `CLIENT_VIEWER` | `viewer@fieldops.local` | `Viewer@12345` | Web |
+**As senhas não estão neste repositório.** Todas vêm de `FIELDOPS_SEED_PASSWORD`, que você define no
+`.env` da API (veja `.env.example`). Sem essa variável o seed não roda, e nenhuma conta de
+administrador com senha conhecida chega a existir.
 
+| Perfil | E-mail | Usa |
+|---|---|---|
+| `ADMIN` | `admin@fieldops.local` | Web |
+| `SUPERVISOR` | `supervisor@fieldops.local` | Web |
+| `TECHNICIAN` | `technician@fieldops.local` | **Mobile** |
+| `CLIENT_VIEWER` | `viewer@fieldops.local` | Web |
 ### Identidade visual — FieldOps Precision System
 
 Web e mobile compartilham o mesmo sistema de design, de estética *Ultra-Modern Minimalism*:
@@ -162,15 +165,12 @@ EXPO_PUBLIC_API_URL=https://api.suaempresa.com/api/v1 npm start
 
 ## Credenciais de desenvolvimento
 
-O app foi feito para o perfil **TECHNICIAN**. Com o seed do backend:
-
-| Papel | E-mail | Senha |
-|---|---|---|
-| TECHNICIAN | `technician@fieldops.local` | `Technician@123` |
+O app foi feito para o perfil **TECHNICIAN**. O seed da API cria o usuário
+`technician@fieldops.local`, cuja senha vem de `FIELDOPS_SEED_PASSWORD`, definida no `.env` da
+[API](https://github.com/Project-FielOps/API) — não há senha neste repositório nem valor padrão.
 
 Administrador e supervisor também entram, mas as telas são desenhadas para a execução em campo — o
 planejamento e a revisão ficam na interface administrativa.
-
 ## Telas
 
 | Tela | O que faz | API |
