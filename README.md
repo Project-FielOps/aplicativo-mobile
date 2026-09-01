@@ -1,1 +1,136 @@
-# aplicativo-mobile
+# FieldOps — Aplicativo Mobile
+
+App de campo do FieldOps, para o técnico executar inspeções no ativo: receber a carteira do dia,
+verificar o equipamento por QR Code, responder o checklist, registrar evidências fotográficas e não
+conformidades, e enviar para revisão do supervisor.
+
+Fala com a **mesma API** da interface administrativa (`../API`), então tudo que o técnico faz aqui
+aparece lá: as respostas entram na inspeção, as evidências ficam anexadas e as não conformidades
+chegam para a revisão.
+
+Stack: Expo SDK 57 (Expo Go), React Native 0.86, expo-router, TypeScript.
+
+## Pré-requisitos
+
+- Node 20+
+- App **Expo Go** no celular (Android ou iOS)
+- Celular e computador **na mesma rede Wi-Fi**
+- Backend rodando (`../API`) e Postgres no ar
+
+## Como rodar
+
+```bash
+npm install
+npm start
+```
+
+Leia o QR Code com o Expo Go (Android) ou com a câmera (iOS).
+
+### Como o app encontra a API
+
+Não há IP no código. O app usa como host da API o **mesmo endereço pelo qual o celular alcançou o
+Metro** (`Constants.expoConfig.hostUri`), assumindo a porta `8080`. Isso importa na prática: o IP da
+máquina muda com a renovação de DHCP, e qualquer valor fixo quebraria na troca de rede.
+
+Para apontar para outro ambiente, defina a URL completa:
+
+```bash
+EXPO_PUBLIC_API_URL=https://api.suaempresa.com/api/v1 npm start
+```
+
+> **Firewall:** o Windows costuma bloquear conexões de entrada nas portas 8080 (API) e 8081 (Metro).
+> Se o celular não conectar, libere as duas para a rede privada.
+
+## Credenciais de desenvolvimento
+
+O app foi feito para o perfil **TECHNICIAN**. Com o seed do backend:
+
+| Papel | E-mail | Senha |
+|---|---|---|
+| TECHNICIAN | `technician@fieldops.local` | `Technician@123` |
+
+Administrador e supervisor também entram, mas as telas são desenhadas para a execução em campo — o
+planejamento e a revisão ficam na interface administrativa.
+
+## Telas
+
+| Tela | O que faz | API |
+|---|---|---|
+| Login | Autenticação | `POST /auth/login`, `GET /auth/me` |
+| Início | Progresso do dia, próxima inspeção, atalhos | `GET /inspections?technicianId=` |
+| Inspeções | Lista com busca e filtros (Todas/Hoje/Em andamento) | `GET /inspections` |
+| Detalhes | Ficha do ativo, instruções, portão de verificação | `GET /inspections/{id}`, `GET /equipment/{id}` |
+| Scanner QR | Identifica o ativo e confirma que é o certo | `GET /equipment/by-qr/{qrCode}` |
+| Checklist | Responde por seção, com o controle certo por tipo | `PUT /inspections/{id}/responses/{itemId}` |
+| Câmera | Evidência fotográfica com coordenada | `POST /inspections/{id}/evidence` |
+| Não conformidade | Registra desvio com severidade | `POST /inspections/{id}/non-conformities` |
+| Resumo | Fechamento, pendências e envio | `POST /inspections/{id}/submit` |
+| Histórico do ativo | Inspeções anteriores no mesmo equipamento | `GET /inspections?siteId=` |
+| Sincronização | Estado da rede e fila de operações | — |
+| Perfil | Sessão, ambiente e saída | `POST /auth/logout` |
+
+## Offline primeiro
+
+Inspeção acontece em subsolo, casa de máquinas e área rural. Assumir conectividade seria assumir
+errado, então:
+
+- **Toda escrita passa por uma fila** (`src/offline/queue.ts`), gravada em `AsyncStorage` e drenada
+  na ordem de criação — a ordem importa, porque `submit` só pode chegar depois das respostas que o
+  servidor valida.
+- **Respostas são deduplicadas por item**: digitar não infla a fila, e o último valor é o que sobe.
+- **Leitura tem cache** (`src/offline/cache.ts`): abrir um checklist sem sinal mostra o conteúdo
+  guardado, em vez de uma tela de erro.
+- **A fila drena sozinha** quando a rede volta (`NetInfo`), sem o técnico precisar lembrar.
+- **Falha 4xx permanente sai da fila** (operação inválida — item já respondido, inspeção já enviada),
+  senão ela entupiria para sempre. Falha de rede ou 5xx permanece e é tentada de novo.
+
+## Sessão
+
+O **refresh token** vai para o `SecureStore` (Keychain/Keystore): o aparelho é levado a campo e pode
+ser perdido, então o segredo de longa duração fica sob proteção do sistema. O **access token** só
+existe em memória, e o cliente HTTP o renova sozinho ao receber 401 — a renovação acontece dentro do
+cliente, antes de qualquer tratamento de erro de tela, para o técnico não ser derrubado para o login
+quando a sessão ainda podia ser salva.
+
+## Verificação do ativo
+
+O protótipo bloqueia o início da inspeção enquanto o técnico não confirma, no local, que está diante
+do equipamento certo — é o que evita inspecionar o ativo vizinho e assinar por ele. O backend não
+guarda esse estado (não existe endpoint), então ele vive no aparelho, por inspeção
+(`src/inspection/verification.ts`).
+
+## Identidade visual
+
+Mesmo **FieldOps Precision System** da interface administrativa, portado para React Native em
+`src/theme/`: Plus Jakarta Sans nos títulos, Inter no corpo, JetBrains Mono em dado técnico; card
+16px / botão 12px / badge 8px; badges em *soft fill* (10% de fundo, 100% de texto); nenhum alvo de
+toque abaixo de 44px, porque o app é operado com luva, em pé, às vezes sob chuva.
+
+## Estrutura
+
+```
+app/                     rotas (expo-router)
+  (tabs)/                Início, Inspeções, Sincronização, Perfil
+  inspection/[id]/       detalhes, checklist, resumo, não conformidade, histórico
+  scanner.tsx camera.tsx modais de câmera
+src/
+  api/                   cliente HTTP, endpoints e tipos espelhando os DTOs da API
+  auth/                  sessão e restauração
+  offline/               fila de escrita, cache de leitura, estado de rede
+  inspection/            regras de resposta, item do checklist, verificação por QR
+  components/            primitivas do design system
+  theme/                 tokens e tipografia
+```
+
+## Limites conhecidos
+
+- **Evidência por item**: a API só vincula evidência a uma resposta já persistida (`responseId`), que
+  offline ainda não existe. A foto é enviada vinculada à inspeção, com o item identificado na
+  descrição (`[item:<id>]`). Um `inspectionItemId` no endpoint de evidência resolveria isso melhor.
+- **Histórico do ativo**: a API filtra inspeções por local, não por equipamento; buscamos o local e
+  refinamos no cliente. Correto porque um equipamento pertence a um único local, mas um filtro
+  `equipmentId` seria mais direto.
+- **`rulesJson`**: a API carrega o campo, mas o construtor de modelos ainda não define um schema. O
+  app lê `{min, max, unit}` de forma tolerante para mostrar a faixa-alvo; sem isso, o campo numérico
+  funciona como número simples.
+- **Notificações push** não fazem parte deste build.
