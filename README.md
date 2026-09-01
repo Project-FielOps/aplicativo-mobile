@@ -4,18 +4,137 @@ App de campo do FieldOps, para o técnico executar inspeções no ativo: receber
 verificar o equipamento por QR Code, responder o checklist, registrar evidências fotográficas e não
 conformidades, e enviar para revisão do supervisor.
 
-Fala com a **mesma API** da interface administrativa (`../API`), então tudo que o técnico faz aqui
+Fala com a **mesma API** da interface administrativa ([`Project-FielOps/API`](https://github.com/Project-FielOps/API)), então tudo que o técnico faz aqui
 aparece lá: as respostas entram na inspeção, as evidências ficam anexadas e as não conformidades
 chegam para a revisão.
 
 Stack: Expo SDK 57 (Expo Go), React Native 0.86, expo-router, TypeScript.
+
+## O projeto FieldOps
+
+Plataforma de **planejamento, execução e revisão de inspeções técnicas em campo**. Um supervisor
+planeja a inspeção e monta o checklist na web; o técnico executa no celular, diante do ativo, com ou
+sem sinal; o supervisor revisa, aprova ou reprova. Tudo fica auditado.
+
+São três repositórios independentes:
+
+| Repositório | O que é | Stack |
+|---|---|---|
+| [`API`](https://github.com/Project-FielOps/API) | Regras de negócio, autenticação, persistência e auditoria | Java 21 · Spring Boot 3.3 · PostgreSQL 16 |
+| [`interface-administrativa`](https://github.com/Project-FielOps/interface-administrativa) | Web do supervisor: cadastros, modelos, planejamento e revisão | Angular 22 · Angular Material |
+| [`aplicativo-mobile`](https://github.com/Project-FielOps/aplicativo-mobile) **← você está aqui** | App do técnico em campo | Expo SDK 57 · React Native |
+
+### Arquitetura
+
+```mermaid
+graph LR
+    subgraph campo["Em campo"]
+        M["📱 aplicativo-mobile<br/>Expo Go"]
+    end
+    subgraph escritorio["No escritório"]
+        W["🖥️ interface-administrativa<br/>Angular · :4200"]
+    end
+    subgraph servidor["Servidor"]
+        A["⚙️ API<br/>Spring Boot · :8080"]
+        D[("🗄️ PostgreSQL<br/>:5433")]
+        F["📁 ./data/evidence<br/>fotos"]
+    end
+
+    M -->|"REST + JWT"| A
+    W -->|"REST + JWT"| A
+    A --> D
+    A --> F
+```
+
+Não há comunicação direta entre o app e a web: **a API é o ponto de encontro**. O técnico responde o
+checklist no celular e aquilo aparece na revisão do supervisor porque os dois falam com o mesmo
+backend.
+
+### Ciclo de vida de uma inspeção
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> ASSIGNED: supervisor agenda
+    ASSIGNED --> IN_PROGRESS: técnico inicia
+    IN_PROGRESS --> SUBMITTED: técnico envia
+    SUBMITTED --> UNDER_REVIEW: supervisor abre
+    UNDER_REVIEW --> APPROVED: aprovada
+    UNDER_REVIEW --> REJECTED: reprovada com motivo
+    REJECTED --> IN_PROGRESS: técnico corrige
+    APPROVED --> [*]
+```
+
+| Etapa | Onde | Perfil |
+|---|---|---|
+| Cadastros, modelos de checklist, agendamento | Web | `ADMIN` · `SUPERVISOR` |
+| Verificação do ativo, execução, evidências, não conformidades | Mobile | `TECHNICIAN` |
+| Revisão, aprovação e reprovação | Web | `SUPERVISOR` |
+
+### Subindo o ambiente completo
+
+Na ordem — **banco → API → web / mobile**. Cada repositório detalha a sua parte no próprio README.
+
+```bash
+# 1. Banco (repositório API)
+cd API && docker compose up -d
+
+# 2. API — exige JDK 21; o Spring Boot 3.3.4 não roda bem em JDK mais novo
+mvn -DskipTests package && java -jar target/fieldops-api-0.1.0.jar
+
+# 3. Web
+cd interface-administrativa && npm install && npm start
+
+# 4. Mobile — celular na mesma Wi-Fi, aberto pelo Expo Go
+cd aplicativo-mobile && npm install && npm start
+```
+
+| Porta | Serviço |
+|---|---|
+| `5433` | PostgreSQL (container) |
+| `8080` | API · Swagger em `/swagger-ui.html` |
+| `4200` | Interface administrativa |
+| `8081` | Metro bundler (Expo) |
+
+> No Windows, o firewall costuma bloquear entrada nas portas **8080** e **8081**. Se o celular não
+> conectar no Expo Go, libere as duas para a rede privada.
+
+### Credenciais de desenvolvimento
+
+Criadas pelo seed da API (apenas no perfil `dev`, com o banco vazio):
+
+| Perfil | E-mail | Senha | Usa |
+|---|---|---|---|
+| `ADMIN` | `admin@fieldops.local` | `Admin@12345` | Web |
+| `SUPERVISOR` | `supervisor@fieldops.local` | `Supervisor@123` | Web |
+| `TECHNICIAN` | `technician@fieldops.local` | `Technician@123` | **Mobile** |
+| `CLIENT_VIEWER` | `viewer@fieldops.local` | `Viewer@12345` | Web |
+
+### Identidade visual — FieldOps Precision System
+
+Web e mobile compartilham o mesmo sistema de design, de estética *Ultra-Modern Minimalism*:
+autoridade técnica, muito respiro e baixa carga cognitiva para quem opera em campo.
+
+| Eixo | Regra |
+|---|---|
+| Tipografia | Plus Jakarta Sans nos títulos · Inter no corpo · JetBrains Mono em dado técnico |
+| Cor de ação | `#2563EB` sólido; semânticas só em status, validação e alerta crítico |
+| Formas | 16px em cards · 12px em botões e campos · 8px em badges |
+| Elevação | Camadas tonais: fundo `#FAF8FF`, superfície `#FFFFFF` com contorno de 1px |
+| Badges | *Soft fill*: 10% da cor no fundo, 100% no texto |
+| Alvo de toque | Nunca abaixo de 44px — o app é usado em pé, com luva |
+
+Os tokens vivem em `src/styles/_tokens.scss` (web) e `src/theme/` (mobile). Mudar a marca é mudar
+esses dois arquivos.
+
+---
 
 ## Pré-requisitos
 
 - Node 20+
 - App **Expo Go** no celular (Android ou iOS)
 - Celular e computador **na mesma rede Wi-Fi**
-- Backend rodando (`../API`) e Postgres no ar
+- Backend ([`API`](https://github.com/Project-FielOps/API)) rodando e Postgres no ar
 
 ## Como rodar
 
@@ -134,3 +253,7 @@ src/
   app lê `{min, max, unit}` de forma tolerante para mostrar a faixa-alvo; sem isso, o campo numérico
   funciona como número simples.
 - **Notificações push** não fazem parte deste build.
+- **Dados de demonstração**: o seed da API cria usuários, clientes, locais e equipamentos, mas
+  **nenhuma inspeção**. Para percorrer o fluxo é preciso publicar um modelo de checklist e agendar
+  uma inspeção para `technician@fieldops.local` — as duas coisas se fazem na interface
+  administrativa. Sem isso o app abre corretamente, porém vazio.
