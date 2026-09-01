@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "FieldOps",
+    "slug": "fieldops-mobile",
+    "scheme": "fieldops",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAF8FF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fieldops.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "O FieldOps usa a câmera para registrar evidências fotográficas e ler o QR Code dos ativos.",
+        "NSLocationWhenInUseUsageDescription": "O FieldOps registra a localização da evidência para comprovar a inspeção em campo.",
+        "NSPhotoLibraryUsageDescription": "O FieldOps anexa fotos às evidências da inspeção."
+      }
+    },
+    "android": {
+      "package": "com.fieldops.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#2563EB",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      "expo-splash-screen",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O FieldOps usa a câmera para registrar evidências e ler o QR Code dos ativos."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "O FieldOps registra a localização da evidência para comprovar a inspeção em campo."
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {}
+    }
+  }
+}
