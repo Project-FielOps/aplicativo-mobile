@@ -63,9 +63,6 @@ export default function LoginScreen() {
         >
           {/* Marca */}
           <View style={styles.brand}>
-            <View style={styles.mark}>
-              <Ionicons name="shield-checkmark" size={32} color="#ffffff" />
-            </View>
             <Text style={type.headlineMd}>Autenticação</Text>
             <View style={styles.statusLine}>
               <StatusDot ok />
@@ -151,15 +148,6 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   brand: { alignItems: 'center', gap: spacing.sm },
-  mark: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.lg,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...elevation.primary,
-  },
   statusLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   card: {
     backgroundColor: colors.surfaceContainerLowest,
