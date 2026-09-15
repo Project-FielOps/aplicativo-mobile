@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,18 +14,22 @@ import { colors, radius, semantic, spacing } from '../../src/theme/tokens';
 import { type } from '../../src/theme/typography';
 import type { InspectionSummary } from '../../src/api/types';
 
-type FilterKey = 'all' | 'today' | 'inProgress';
+/**
+ * Os filtros seguem o ciclo de vida da inspeção, na ordem em que ela anda:
+ * pendente com o técnico, em andamento, na mão do supervisor, encerrada. É
+ * onde o técnico vê para onde foi o que ele enviou — some da agenda, aparece
+ * em "Em análise" e termina em "Concluídas".
+ */
+type FilterKey = 'all' | 'pending' | 'inProgress' | 'inReview' | 'done';
 
-function isToday(iso: string | null): boolean {
-  if (!iso) return false;
-  const d = new Date(iso);
-  const now = new Date();
-  return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  );
-}
+/** Aguardando revisão do supervisor: saiu do campo, ainda não foi decidida. */
+const IN_REVIEW: ReadonlyArray<string> = ['SUBMITTED', 'UNDER_REVIEW'];
+
+/** Ciclo encerrado. Reprovada não entra: volta para o técnico corrigir. */
+const DONE: ReadonlyArray<string> = ['APPROVED'];
+
+/** Ainda depende do técnico. */
+const PENDING: ReadonlyArray<string> = ['ASSIGNED', 'REJECTED'];
 
 export default function InspectionsScreen() {
   const router = useRouter();
@@ -45,16 +49,20 @@ export default function InspectionsScreen() {
   const counts = useMemo(
     () => ({
       all: all.length,
-      today: all.filter((i) => isToday(i.scheduledFor)).length,
+      pending: all.filter((i) => PENDING.includes(i.status)).length,
       inProgress: all.filter((i) => i.status === 'IN_PROGRESS').length,
+      inReview: all.filter((i) => IN_REVIEW.includes(i.status)).length,
+      done: all.filter((i) => DONE.includes(i.status)).length,
     }),
     [all],
   );
 
   const visible = useMemo(() => {
     const byFilter = all.filter((i) => {
-      if (filter === 'today') return isToday(i.scheduledFor);
+      if (filter === 'pending') return PENDING.includes(i.status);
       if (filter === 'inProgress') return i.status === 'IN_PROGRESS';
+      if (filter === 'inReview') return IN_REVIEW.includes(i.status);
+      if (filter === 'done') return DONE.includes(i.status);
       return true;
     });
 
@@ -89,16 +97,37 @@ export default function InspectionsScreen() {
           ) : null}
         </View>
 
-        <View style={styles.chips}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chips}
+        >
           <FilterChip label="Todas" count={counts.all} active={filter === 'all'} onPress={() => setFilter('all')} />
-          <FilterChip label="Hoje" count={counts.today} active={filter === 'today'} onPress={() => setFilter('today')} />
           <FilterChip
-            label="Em Andamento"
+            label="Pendentes"
+            count={counts.pending}
+            active={filter === 'pending'}
+            onPress={() => setFilter('pending')}
+          />
+          <FilterChip
+            label="Em andamento"
             count={counts.inProgress}
             active={filter === 'inProgress'}
             onPress={() => setFilter('inProgress')}
           />
-        </View>
+          <FilterChip
+            label="Em análise"
+            count={counts.inReview}
+            active={filter === 'inReview'}
+            onPress={() => setFilter('inReview')}
+          />
+          <FilterChip
+            label="Concluídas"
+            count={counts.done}
+            active={filter === 'done'}
+            onPress={() => setFilter('done')}
+          />
+        </ScrollView>
       </View>
 
       {loading && !data ? (
@@ -238,7 +267,7 @@ const styles = StyleSheet.create({
     borderColor: colors.hairline,
   },
   searchInput: { flex: 1, paddingVertical: 0 },
-  chips: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
+  chips: { flexDirection: 'row', gap: spacing.xs, paddingRight: spacing.gutter },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
