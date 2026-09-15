@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { Badge, Button, Card, ErrorState, LoadingState } from '../../../src/comp
 import { ScreenHeader } from '../../../src/components/Header';
 import { blockingIssues, currentAnswer, isAnswered } from '../../../src/inspection/answers';
 import { label, priorityTone } from '../../../src/labels';
+import { confirm, notify } from '../../../src/dialogs';
 import { colors, radius, semantic, spacing } from '../../../src/theme/tokens';
 import { type } from '../../../src/theme/typography';
 
@@ -67,51 +68,59 @@ export default function SummaryScreen() {
     (i) => currentAnswer(i, queuedAnswers[i.id]).conformity === 'NOT_APPLICABLE',
   ).length;
 
-  const issues = blockingIssues(items, queuedAnswers);
+  /**
+   * Fotos por item, contando as que ainda estão na fila. A evidência enfileirada
+   * carrega o id do item na descrição — é como a câmera as associa enquanto não
+   * existe resposta persistida para vinculá-las.
+   */
+  const evidenceFor = (itemId: string) =>
+    pending.filter(
+      (e) =>
+        e.operation.kind === 'evidence' &&
+        e.operation.inspectionId === id &&
+        e.operation.description?.includes(itemId),
+    ).length;
+
+  const issues = blockingIssues(items, queuedAnswers, evidenceFor);
   const queuedPhotos = pending.filter(
     (e) => e.operation.kind === 'evidence' && e.operation.inspectionId === id,
   ).length;
   const totalPhotos = (data?.photos.length ?? 0) + queuedPhotos;
   const editable = inspection ? EDITABLE.includes(inspection.status) : false;
 
-  const submit = () => {
+  const submit = async () => {
     if (issues.length > 0) {
-      Alert.alert(
+      notify(
         'Checklist incompleto',
         `Há ${issues.length} pendência(s) que impedem o envio. Volte ao checklist e resolva antes de concluir.`,
       );
       return;
     }
 
-    Alert.alert(
-      'Enviar para revisão',
-      online
+    const confirmed = await confirm({
+      title: 'Enviar para revisão',
+      message: online
         ? 'A inspeção será enviada ao supervisor e não poderá mais ser editada no aplicativo. Confirmar?'
         : 'Você está offline. O envio ficará na fila e acontecerá assim que a rede voltar. Confirmar?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Enviar',
-          onPress: async () => {
-            setSubmitting(true);
-            try {
-              // Sempre pela fila: garante que o submit chegue depois das
-              // respostas e das evidências que o servidor valida.
-              await enqueue({ kind: 'submit', inspectionId: id });
-              Alert.alert(
-                'Inspeção concluída',
-                online
-                  ? 'Enviada para revisão do supervisor.'
-                  : 'Guardada no aparelho. Será enviada quando houver conexão.',
-              );
-              router.replace('/(tabs)/inspections');
-            } finally {
-              setSubmitting(false);
-            }
-          },
-        },
-      ],
-    );
+      confirmText: 'Enviar',
+    });
+    if (!confirmed) return;
+
+    setSubmitting(true);
+    try {
+      // Sempre pela fila: garante que o submit chegue depois das respostas e
+      // das evidências que o servidor valida.
+      await enqueue({ kind: 'submit', inspectionId: id });
+      notify(
+        'Inspeção concluída',
+        online
+          ? 'Enviada para revisão do supervisor.'
+          : 'Guardada no aparelho. Será enviada quando houver conexão.',
+      );
+      router.replace('/(tabs)/inspections');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -215,7 +224,7 @@ export default function SummaryScreen() {
               <Button
                 title={online ? 'Enviar para Revisão' : 'Concluir (envia ao reconectar)'}
                 icon="cloud-upload-outline"
-                onPress={submit}
+                onPress={() => void submit()}
                 loading={submitting}
                 disabled={issues.length > 0}
               />
