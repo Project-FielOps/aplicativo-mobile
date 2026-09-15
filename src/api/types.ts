@@ -216,6 +216,30 @@ export interface Equipment {
   version: number;
 }
 
+/**
+ * Local do cliente. O app usa o endereço e as coordenadas para abrir a rota no
+ * mapa — é o que leva o técnico até o ativo.
+ */
+export interface Site {
+  id: string;
+  clientId: string | null;
+  clientName: string | null;
+  name: string;
+  description: string | null;
+  addressLine: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  contactName: string | null;
+  contactPhone: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
 /** Corpo de erro padronizado da API (`ApiError`). */
 export interface ApiError {
   timestamp: string;

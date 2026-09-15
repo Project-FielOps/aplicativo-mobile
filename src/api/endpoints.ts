@@ -10,6 +10,7 @@ import type {
   InspectionSummary,
   NonConformityResponse,
   PageResponse,
+  Site,
   TokenResponse,
   UserResponse,
 } from './types';
@@ -140,6 +141,12 @@ export const nonConformities = {
       method: 'POST',
       body,
     }),
+};
+
+// --- Locais ----------------------------------------------------------------
+
+export const sites = {
+  get: (id: string) => request<Site>(`/sites/${id}`),
 };
 
 // --- Equipamentos ----------------------------------------------------------
