@@ -76,6 +76,8 @@ export default function AgendaScreen() {
   const { user } = useAuth();
   const { online, pending } = useSync();
 
+  const canPlan = user?.role === 'ADMIN' || user?.role === 'SUPERVISOR';
+
   const load = useCallback(async () => {
     const page = await inspectionsApi.list({
       technicianId: user?.id,
@@ -143,6 +145,18 @@ export default function AgendaScreen() {
             Some da agenda ao ser enviada para revisão.
           </Text>
         </View>
+
+        {/* Quem planeja agenda por aqui; o técnico só executa o que recebeu. */}
+        {canPlan ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/inspection/new')}
+            style={({ pressed }) => [styles.scheduleButton, pressed && { opacity: 0.9 }]}
+          >
+            <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
+            <Text style={[type.bodyMdMedium, { color: '#ffffff' }]}>Agendar nova inspeção</Text>
+          </Pressable>
+        ) : null}
 
         {!online ? (
           <View style={styles.offline}>
@@ -302,6 +316,16 @@ const styles = StyleSheet.create({
     backgroundColor: semantic.warning.bg,
     borderRadius: radius.md,
     padding: spacing.sm,
+  },
+
+  scheduleButton: {
+    minHeight: touchTarget,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
   },
 
   group: { gap: spacing.sm },
