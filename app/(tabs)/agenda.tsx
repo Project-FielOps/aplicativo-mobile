@@ -5,7 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSync } from '../../src/offline/SyncContext';
-import { inspections as inspectionsApi, sites as sitesApi } from '../../src/api/endpoints';
+import {
+  inspections as inspectionsApi,
+  review as reviewApi,
+  sites as sitesApi,
+} from '../../src/api/endpoints';
 import { useAsync } from '../../src/hooks/useAsync';
 import { Badge, Card, EmptyState, ErrorState, LoadingState } from '../../src/components/ui';
 import { BrandHeader } from '../../src/components/Header';
@@ -99,8 +103,11 @@ export default function AgendaScreen() {
       if (site) sites.set(site.id, site);
     });
 
-    return { inspections: pendingOnes, sites };
-  }, [user?.id]);
+    // Quantas esperam decisão — o contador do botão de revisão.
+    const awaiting = canPlan ? await reviewApi.pending().catch(() => []) : [];
+
+    return { inspections: pendingOnes, sites, awaiting: awaiting.length };
+  }, [user?.id, canPlan]);
 
   const { data, loading, error, reload } = useAsync(load, [user?.id]);
 
@@ -122,6 +129,7 @@ export default function AgendaScreen() {
   }, [data]);
 
   const total = data?.inspections.length ?? 0;
+  const toReview = data?.awaiting ?? 0;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -146,16 +154,34 @@ export default function AgendaScreen() {
           </Text>
         </View>
 
-        {/* Quem planeja agenda por aqui; o técnico só executa o que recebeu. */}
+        {/* Quem planeja agenda e revisa por aqui; o técnico só executa. */}
         {canPlan ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/inspection/new')}
-            style={({ pressed }) => [styles.scheduleButton, pressed && { opacity: 0.9 }]}
-          >
-            <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
-            <Text style={[type.bodyMdMedium, { color: '#ffffff' }]}>Agendar nova inspeção</Text>
-          </Pressable>
+          <View style={{ gap: spacing.xs }}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/inspection/new')}
+              style={({ pressed }) => [styles.scheduleButton, pressed && { opacity: 0.9 }]}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
+              <Text style={[type.bodyMdMedium, { color: '#ffffff' }]}>Agendar nova inspeção</Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/review')}
+              style={({ pressed }) => [styles.reviewButton, pressed && { opacity: 0.9 }]}
+            >
+              <Ionicons name="checkmark-done-outline" size={20} color={colors.primaryContainer} />
+              <Text style={[type.bodyMdMedium, { color: colors.primaryContainer }]}>
+                Revisar enviadas
+              </Text>
+              {toReview > 0 ? (
+                <View style={styles.reviewCount}>
+                  <Text style={[type.labelCaps, { color: '#ffffff' }]}>{toReview}</Text>
+                </View>
+              ) : null}
+            </Pressable>
+          </View>
         ) : null}
 
         {!online ? (
@@ -326,6 +352,27 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     borderRadius: radius.md,
     backgroundColor: colors.primary,
+  },
+
+  reviewButton: {
+    minHeight: touchTarget,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
+  reviewCount: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: semantic.warning.fg,
   },
 
   group: { gap: spacing.sm },
