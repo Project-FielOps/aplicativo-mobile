@@ -216,6 +216,21 @@ export interface Equipment {
   version: number;
 }
 
+export type ReviewDecision = 'APPROVED' | 'REJECTED';
+
+/** Um parecer do supervisor sobre a inspeção. Há um por ciclo de revisão. */
+export interface InspectionReview {
+  id: string;
+  inspectionId: string;
+  reviewerId: string | null;
+  reviewerName: string | null;
+  decision: ReviewDecision;
+  reason: string | null;
+  comments: string | null;
+  reviewedAt: string | null;
+  reviewCycle: number | null;
+}
+
 export interface Client {
   id: string;
   name: string;
