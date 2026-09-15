@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { useVerification } from '../../../src/inspection/verification';
 import { Badge, Button, Card, DataRow, ErrorState, LoadingState } from '../../../src/components/ui';
 import { ScreenHeader } from '../../../src/components/Header';
 import { formatDateTime, label, priorityTone, statusTone } from '../../../src/labels';
+import { notify } from '../../../src/dialogs';
 import { colors, radius, semantic, spacing } from '../../../src/theme/tokens';
 import { type } from '../../../src/theme/typography';
 
@@ -49,7 +50,7 @@ export default function InspectionDetailScreen() {
       }
       router.push(`/inspection/${inspection.id}/checklist`);
     } catch (e) {
-      Alert.alert('Não foi possível iniciar', e instanceof Error ? e.message : 'Tente novamente.');
+      notify('Não foi possível iniciar', e instanceof Error ? e.message : 'Tente novamente.');
     } finally {
       setStarting(false);
     }
