@@ -2,6 +2,8 @@ import { request } from './client';
 import type {
   AnswerResponse,
   AnswerUpsertRequest,
+  Client,
+  CreateInspectionRequest,
   CreateNonConformityRequest,
   Equipment,
   EvidenceResponse,
@@ -11,6 +13,7 @@ import type {
   NonConformityResponse,
   PageResponse,
   Site,
+  Template,
   TokenResponse,
   UserResponse,
 } from './types';
@@ -66,6 +69,10 @@ export const inspections = {
   },
 
   get: (id: string) => request<InspectionDetail>(`/inspections/${id}`),
+
+  /** Agendamento. Exige ADMIN ou SUPERVISOR. */
+  create: (body: CreateInspectionRequest) =>
+    request<InspectionDetail>('/inspections', { method: 'POST', body }),
 
   start: (id: string) => request<InspectionDetail>(`/inspections/${id}/start`, { method: 'POST' }),
 
@@ -143,10 +150,36 @@ export const nonConformities = {
     }),
 };
 
+// --- Cadastros (agendamento) -----------------------------------------------
+
+export const clients = {
+  list: () => request<PageResponse<Client>>('/clients', { query: { size: 100, status: 'ACTIVE' } }),
+};
+
+export const templates = {
+  /**
+   * Modelos ativos. "Publicado" é estado da versão, não do modelo: um modelo
+   * ativo sem `currentVersion` ainda não teve versão publicada e não pode gerar
+   * inspeção — quem chama filtra por isso.
+   */
+  active: () =>
+    request<PageResponse<Template>>('/inspection-templates', {
+      query: { size: 100, status: 'ACTIVE' },
+    }),
+};
+
+export const users = {
+  /** Exige ADMIN — a tela de agendamento é restrita a esse papel. */
+  list: () => request<PageResponse<UserResponse>>('/users', { query: { size: 100 } }),
+};
+
 // --- Locais ----------------------------------------------------------------
 
 export const sites = {
   get: (id: string) => request<Site>(`/sites/${id}`),
+
+  byClient: (clientId: string) =>
+    request<PageResponse<Site>>(`/clients/${clientId}/sites`, { query: { size: 100 } }),
 };
 
 // --- Equipamentos ----------------------------------------------------------
@@ -156,4 +189,7 @@ export const equipment = {
 
   /** Alvo da tela de scanner: resolve o ativo a partir do conteúdo do QR Code. */
   byQrCode: (qrCode: string) => request<Equipment>(`/equipment/by-qr/${encodeURIComponent(qrCode)}`),
+
+  bySite: (siteId: string) =>
+    request<PageResponse<Equipment>>(`/sites/${siteId}/equipment`, { query: { size: 100 } }),
 };

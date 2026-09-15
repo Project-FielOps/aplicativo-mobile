@@ -216,6 +216,42 @@ export interface Equipment {
   version: number;
 }
 
+export interface Client {
+  id: string;
+  name: string;
+  legalName: string | null;
+  document: string | null;
+  email: string | null;
+  phone: string | null;
+  status: string;
+}
+
+export interface Template {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  status: string;
+  currentVersion: number | null;
+  hasOpenDraft: boolean;
+}
+
+/** Agendamento de inspeção — o que o supervisor preenche antes do campo. */
+export interface CreateInspectionRequest {
+  templateId: string;
+  templateVersionNumber?: number | null;
+  clientId: string;
+  siteId: string;
+  equipmentId?: string | null;
+  technicianId: string;
+  supervisorId: string;
+  title: string;
+  instructions?: string | null;
+  priority: Priority;
+  /** ISO-8601 em UTC. */
+  scheduledFor: string;
+}
+
 /**
  * Local do cliente. O app usa o endereço e as coordenadas para abrir a rota no
  * mapa — é o que leva o técnico até o ativo.
