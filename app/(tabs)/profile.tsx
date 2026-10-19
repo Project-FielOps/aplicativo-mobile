@@ -69,8 +69,8 @@ export default function ProfileScreen() {
           <Text style={[type.labelCaps, { marginBottom: spacing.xs }]}>Permissões neste perfil</Text>
           <Text style={[type.bodyMd, styles.muted]}>
             Como {label(user?.role)}, você executa inspeções atribuídas a você: iniciar, responder o
-            checklist, anexar evidências, registrar não conformidades e enviar para revisão. A
-            aprovação é feita pelo supervisor na interface administrativa.
+            checklist, anexar evidências, registrar não conformidades e enviar para revisão.
+            Agendamento e aprovação são feitos pelo supervisor na interface administrativa.
           </Text>
         </Card>
 

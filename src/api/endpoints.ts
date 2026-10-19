@@ -2,19 +2,15 @@ import { request } from './client';
 import type {
   AnswerResponse,
   AnswerUpsertRequest,
-  Client,
-  CreateInspectionRequest,
   CreateNonConformityRequest,
   Equipment,
   EvidenceResponse,
   InspectionDetail,
-  InspectionReview,
   InspectionStatus,
   InspectionSummary,
   NonConformityResponse,
   PageResponse,
   Site,
-  Template,
   TokenResponse,
   UserResponse,
 } from './types';
@@ -70,10 +66,6 @@ export const inspections = {
   },
 
   get: (id: string) => request<InspectionDetail>(`/inspections/${id}`),
-
-  /** Agendamento. Exige ADMIN ou SUPERVISOR. */
-  create: (body: CreateInspectionRequest) =>
-    request<InspectionDetail>('/inspections', { method: 'POST', body }),
 
   start: (id: string) => request<InspectionDetail>(`/inspections/${id}/start`, { method: 'POST' }),
 
@@ -149,69 +141,6 @@ export const nonConformities = {
       method: 'POST',
       body,
     }),
-};
-
-// --- Revisão ---------------------------------------------------------------
-
-/**
- * O supervisor decide o destino do que voltou do campo. Aprovar encerra a
- * inspeção; reprovar exige motivo e devolve a tarefa para a agenda do técnico,
- * que corrige e submete de novo.
- */
-export const review = {
-  /** Fila de revisão: enviadas e as já abertas por alguém. */
-  pending: async () => {
-    const [submitted, underReview] = await Promise.all([
-      request<PageResponse<InspectionSummary>>('/inspections', {
-        query: { status: 'SUBMITTED', size: 100, sort: 'scheduledFor,asc' },
-      }),
-      request<PageResponse<InspectionSummary>>('/inspections', {
-        query: { status: 'UNDER_REVIEW', size: 100, sort: 'scheduledFor,asc' },
-      }),
-    ]);
-    return [...submitted.content, ...underReview.content];
-  },
-
-  /** Marca a inspeção como em revisão — sai da fila dos outros supervisores. */
-  begin: (id: string) =>
-    request<InspectionDetail>(`/inspections/${id}/begin-review`, { method: 'POST' }),
-
-  approve: (id: string, comments?: string | null) =>
-    request<InspectionDetail>(`/inspections/${id}/approve`, {
-      method: 'POST',
-      body: { comments: comments || null },
-    }),
-
-  reject: (id: string, reason: string, comments?: string | null) =>
-    request<InspectionDetail>(`/inspections/${id}/reject`, {
-      method: 'POST',
-      body: { reason, comments: comments || null },
-    }),
-
-  history: (id: string) => request<InspectionReview[]>(`/inspections/${id}/reviews`),
-};
-
-// --- Cadastros (agendamento) -----------------------------------------------
-
-export const clients = {
-  list: () => request<PageResponse<Client>>('/clients', { query: { size: 100, status: 'ACTIVE' } }),
-};
-
-export const templates = {
-  /**
-   * Modelos ativos. "Publicado" é estado da versão, não do modelo: um modelo
-   * ativo sem `currentVersion` ainda não teve versão publicada e não pode gerar
-   * inspeção — quem chama filtra por isso.
-   */
-  active: () =>
-    request<PageResponse<Template>>('/inspection-templates', {
-      query: { size: 100, status: 'ACTIVE' },
-    }),
-};
-
-export const users = {
-  /** Exige ADMIN — a tela de agendamento é restrita a esse papel. */
-  list: () => request<PageResponse<UserResponse>>('/users', { query: { size: 100 } }),
 };
 
 // --- Locais ----------------------------------------------------------------

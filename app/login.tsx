@@ -11,7 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../src/auth/AuthContext';
+import { RoleNotAllowedError, useAuth } from '../src/auth/AuthContext';
 import { HttpError, OfflineError } from '../src/api/client';
 import { Button, Field, StatusDot } from '../src/components/ui';
 import { colors, elevation, radius, semantic, spacing } from '../src/theme/tokens';
@@ -37,7 +37,9 @@ export default function LoginScreen() {
       await signIn(email, password);
       router.replace('/(tabs)');
     } catch (e) {
-      if (e instanceof OfflineError) {
+      if (e instanceof RoleNotAllowedError) {
+        setError(e.message);
+      } else if (e instanceof OfflineError) {
         setError('Sem conexão com o servidor. Verifique a rede e tente de novo.');
       } else if (e instanceof HttpError && e.status === 401) {
         setError('E-mail ou senha inválidos.');
