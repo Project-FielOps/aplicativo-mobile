@@ -55,6 +55,9 @@
         }
       ]
     ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
     "extra": {
       "router": {},
       "eas": {}

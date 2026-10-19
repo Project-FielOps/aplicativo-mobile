@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -60,16 +60,52 @@ export default function ChecklistScreen() {
     [pending, id],
   );
 
+  /**
+   * O rascunho vive aqui e também em um ref, porque o envio para a fila
+   * acontece fora do atualizador de estado: enfileirar a cada tecla mexe no
+   * estado do SyncContext, o que re-renderiza a tela e faz o campo de texto
+   * perder o foco no meio da digitação.
+   */
+  const draftsRef = useRef<Record<string, AnswerUpsertRequest>>({});
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const unsent = useRef<Record<string, AnswerUpsertRequest>>({});
+
+  const scheduleEnqueue = useCallback(
+    (itemId: string, answer: AnswerUpsertRequest) => {
+      unsent.current[itemId] = answer;
+      clearTimeout(timers.current[itemId]);
+      // A fila deduplica por item, mas esperar a digitação parar evita gravar
+      // no armazenamento a cada caractere.
+      timers.current[itemId] = setTimeout(() => {
+        const queued = unsent.current[itemId];
+        delete unsent.current[itemId];
+        delete timers.current[itemId];
+        if (queued) void enqueue({ kind: 'answer', inspectionId: id, answer: queued });
+      }, 600);
+    },
+    [enqueue, id],
+  );
+
   const updateAnswer = useCallback(
     (item: ItemSnapshot, patch: Partial<AnswerUpsertRequest>) => {
-      setDrafts((prev) => {
-        const base = currentAnswer(item, prev[item.id]);
-        const next: AnswerUpsertRequest = { ...base, ...patch, inspectionItemId: item.id };
-        // Toda alteração vai para a fila; ela deduplica por item, então digitar
-        // não infla a fila e o último valor é o que chega ao servidor.
-        void enqueue({ kind: 'answer', inspectionId: id, answer: next });
-        return { ...prev, [item.id]: next };
+      const base = currentAnswer(item, draftsRef.current[item.id]);
+      const next: AnswerUpsertRequest = { ...base, ...patch, inspectionItemId: item.id };
+      draftsRef.current = { ...draftsRef.current, [item.id]: next };
+      setDrafts(draftsRef.current);
+      scheduleEnqueue(item.id, next);
+    },
+    [scheduleEnqueue],
+  );
+
+  // Sair da tela antes do prazo do debounce não pode descartar resposta.
+  useEffect(
+    () => () => {
+      Object.values(timers.current).forEach(clearTimeout);
+      Object.values(unsent.current).forEach((answer) => {
+        void enqueue({ kind: 'answer', inspectionId: id, answer });
       });
+      timers.current = {};
+      unsent.current = {};
     },
     [enqueue, id],
   );

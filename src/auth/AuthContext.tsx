@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from './secureStorage';
 import { configureClient, setTokens } from '../api/client';
 import { auth as authApi } from '../api/endpoints';
 import type { UserResponse } from '../api/types';
@@ -22,6 +22,14 @@ interface AuthState {
   restoring: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+}
+
+/** O app é só do técnico: administração, agendamento e revisão vivem na interface web. */
+export class RoleNotAllowedError extends Error {
+  constructor() {
+    super('Este aplicativo é exclusivo para técnicos. Use a interface administrativa web.');
+    this.name = 'RoleNotAllowedError';
+  }
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -67,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         const fresh = await authApi.me();
+        if (fresh.role !== 'TECHNICIAN') throw new RoleNotAllowedError();
         if (!cancelled) {
           setUser(fresh);
           await SecureStore.setItemAsync(USER_KEY, JSON.stringify(fresh));
@@ -89,9 +98,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await SecureStore.setItemAsync(REFRESH_KEY, tokens.refreshToken);
 
     const me = await authApi.me();
+    if (me.role !== 'TECHNICIAN') {
+      await authApi.logout(tokens.refreshToken).catch(() => undefined);
+      await clearSession();
+      throw new RoleNotAllowedError();
+    }
     setUser(me);
     await SecureStore.setItemAsync(USER_KEY, JSON.stringify(me));
-  }, []);
+  }, [clearSession]);
 
   const signOut = useCallback(async () => {
     const savedRefresh = await SecureStore.getItemAsync(REFRESH_KEY).catch(() => null);

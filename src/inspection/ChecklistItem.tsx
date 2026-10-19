@@ -67,25 +67,6 @@ export function ChecklistItem({
             style={[type.bodyMd, styles.ncInput]}
           />
 
-          <View style={styles.photoRow}>
-            {photoCount > 0 ? (
-              <View style={styles.photoCount}>
-                <Ionicons name="images-outline" size={18} color={colors.onSurfaceVariant} />
-                <Text style={type.bodyMd}>{photoCount}</Text>
-              </View>
-            ) : null}
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={onAddPhoto}
-              disabled={disabled}
-              style={({ pressed }) => [styles.addPhoto, pressed && { opacity: 0.85 }]}
-            >
-              <Ionicons name="camera-outline" size={20} color={colors.primaryContainer} />
-              <Text style={[type.bodyMdMedium, { color: colors.primaryContainer }]}>Adicionar Foto</Text>
-            </Pressable>
-          </View>
-
           <Pressable
             accessibilityRole="button"
             onPress={onOpenNonConformity}
@@ -99,6 +80,27 @@ export function ChecklistItem({
       ) : (
         <ObservationField answer={answer} onChange={onChange} disabled={disabled} />
       )}
+
+      {/* A evidência vale para qualquer item, não só para o que reprovou: o
+          técnico documenta o que encontrou, esteja conforme ou não. */}
+      <View style={styles.photoRow}>
+        {photoCount > 0 ? (
+          <View style={styles.photoCount}>
+            <Ionicons name="images-outline" size={18} color={colors.onSurfaceVariant} />
+            <Text style={type.bodyMd}>{photoCount}</Text>
+          </View>
+        ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={onAddPhoto}
+          disabled={disabled}
+          style={({ pressed }) => [styles.addPhoto, pressed && { opacity: 0.85 }]}
+        >
+          <Ionicons name="camera-outline" size={20} color={colors.primaryContainer} />
+          <Text style={[type.bodyMdMedium, { color: colors.primaryContainer }]}>Adicionar Foto</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
