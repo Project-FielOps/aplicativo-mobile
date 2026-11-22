@@ -10,6 +10,7 @@ import type {
   InspectionSummary,
   NonConformityResponse,
   PageResponse,
+  Site,
   TokenResponse,
   UserResponse,
 } from './types';
@@ -142,6 +143,15 @@ export const nonConformities = {
     }),
 };
 
+// --- Locais ----------------------------------------------------------------
+
+export const sites = {
+  get: (id: string) => request<Site>(`/sites/${id}`),
+
+  byClient: (clientId: string) =>
+    request<PageResponse<Site>>(`/clients/${clientId}/sites`, { query: { size: 100 } }),
+};
+
 // --- Equipamentos ----------------------------------------------------------
 
 export const equipment = {
@@ -149,4 +159,7 @@ export const equipment = {
 
   /** Alvo da tela de scanner: resolve o ativo a partir do conteúdo do QR Code. */
   byQrCode: (qrCode: string) => request<Equipment>(`/equipment/by-qr/${encodeURIComponent(qrCode)}`),
+
+  bySite: (siteId: string) =>
+    request<PageResponse<Equipment>>(`/sites/${siteId}/equipment`, { query: { size: 100 } }),
 };

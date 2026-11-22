@@ -1,4 +1,4 @@
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { Avatar, BrandHeader } from '../../src/components/Header';
 import { Badge, Button, Card } from '../../src/components/ui';
 import { API_HOST } from '../../src/api/config';
 import { label } from '../../src/labels';
+import { confirm } from '../../src/dialogs';
 import { colors, radius, spacing } from '../../src/theme/tokens';
 import { type } from '../../src/theme/typography';
 
@@ -25,16 +26,14 @@ export default function ProfileScreen() {
         ? `Você tem ${pending.length} operação(ões) ainda não enviada(s). Se sair agora, esse trabalho permanece no aparelho, mas só será enviado no próximo login.`
         : 'Deseja encerrar a sessão neste aparelho?';
 
-    Alert.alert('Sair da conta', message, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Sair',
-        style: 'destructive',
-        onPress: () => {
-          void signOut().then(() => router.replace('/login'));
-        },
-      },
-    ]);
+    void confirm({
+      title: 'Sair da conta',
+      message,
+      confirmText: 'Sair',
+      destructive: true,
+    }).then((yes) => {
+      if (yes) void signOut().then(() => router.replace('/login'));
+    });
   };
 
   return (
@@ -70,8 +69,8 @@ export default function ProfileScreen() {
           <Text style={[type.labelCaps, { marginBottom: spacing.xs }]}>Permissões neste perfil</Text>
           <Text style={[type.bodyMd, styles.muted]}>
             Como {label(user?.role)}, você executa inspeções atribuídas a você: iniciar, responder o
-            checklist, anexar evidências, registrar não conformidades e enviar para revisão. A
-            aprovação é feita pelo supervisor na interface administrativa.
+            checklist, anexar evidências, registrar não conformidades e enviar para revisão.
+            Agendamento e aprovação são feitos pelo supervisor na interface administrativa.
           </Text>
         </Card>
 

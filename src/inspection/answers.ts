@@ -36,6 +36,26 @@ export function parseRules(rulesJson: string | null | undefined): NumberRules {
   }
 }
 
+/**
+ * O que o item exige quando reprovado. Mora no mesmo `rulesJson`, e é o que a
+ * API valida no envio (`OBSERVATION_REQUIRED` e `EVIDENCE_REQUIRED`).
+ */
+export function failureRequirements(rulesJson: string | null | undefined): {
+  observation: boolean;
+  evidence: boolean;
+} {
+  if (!rulesJson) return { observation: false, evidence: false };
+  try {
+    const parsed = JSON.parse(rulesJson) as Record<string, unknown>;
+    return {
+      observation: parsed.observationRequiredOnFailure === true,
+      evidence: parsed.evidenceRequiredOnFailure === true,
+    };
+  } catch {
+    return { observation: false, evidence: false };
+  }
+}
+
 /** Estado corrente do item: o rascunho local vence a resposta já no servidor. */
 export function currentAnswer(
   item: ItemSnapshot,
@@ -111,6 +131,8 @@ export function groupSections(items: ItemSnapshot[]): Section[] {
 export function blockingIssues(
   items: ItemSnapshot[],
   drafts: Record<string, AnswerUpsertRequest>,
+  /** Quantas evidências o item já tem, somando as que ainda estão na fila. */
+  evidenceCount?: (itemId: string) => number,
 ): { item: ItemSnapshot; reason: string }[] {
   const issues: { item: ItemSnapshot; reason: string }[] = [];
 
@@ -123,8 +145,18 @@ export function blockingIssues(
       continue;
     }
 
-    if (answer.conformity === 'NON_CONFORMING' && !answer.observation?.trim()) {
+    if (answer.conformity !== 'NON_CONFORMING') continue;
+
+    const requires = failureRequirements(item.rulesJson);
+
+    if (!answer.observation?.trim()) {
       issues.push({ item, reason: 'Não conformidade exige observação' });
+    }
+
+    // O servidor recusa o envio sem evidência (EVIDENCE_REQUIRED); descobrir
+    // aqui evita a viagem perdida de voltar ao ativo para tirar a foto.
+    if (requires.evidence && evidenceCount && evidenceCount(item.id) === 0) {
+      issues.push({ item, reason: 'Não conformidade exige foto de evidência' });
     }
   }
 

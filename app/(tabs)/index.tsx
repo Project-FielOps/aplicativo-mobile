@@ -26,7 +26,14 @@ function isToday(iso: string | null): boolean {
   );
 }
 
+/** Concluído para o técnico: saiu da mão dele, já não há o que fazer hoje. */
 const DONE: ReadonlyArray<string> = ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED'];
+
+/** Esperando a decisão do supervisor. */
+const IN_REVIEW: ReadonlyArray<string> = ['SUBMITTED', 'UNDER_REVIEW'];
+
+/** Ainda depende do técnico — reprovada volta para cá. */
+const PENDING: ReadonlyArray<string> = ['ASSIGNED', 'REJECTED'];
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -48,6 +55,13 @@ export default function DashboardScreen() {
   const nextUp = all.find((i) => i.status === 'ASSIGNED');
   const highlight = inProgress ?? nextUp;
   const pct = today.length > 0 ? Math.round((completedToday / today.length) * 100) : 0;
+
+  const stages = {
+    pending: all.filter((i) => PENDING.includes(i.status)).length,
+    inProgress: all.filter((i) => i.status === 'IN_PROGRESS').length,
+    inReview: all.filter((i) => IN_REVIEW.includes(i.status)).length,
+    done: all.filter((i) => i.status === 'APPROVED').length,
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -127,6 +141,42 @@ export default function DashboardScreen() {
               </View>
             ) : null}
 
+            {/* Onde está cada inspeção. Enviar tira do "Início" e move para
+                "Em análise"; aprovada, termina em "Concluídas". */}
+            <Card>
+              <Text style={[type.labelCaps, { marginBottom: spacing.sm }]}>Situação das suas inspeções</Text>
+              <View style={styles.stageRow}>
+                <Stage
+                  icon="time-outline"
+                  label="Pendentes"
+                  count={stages.pending}
+                  tone={colors.onSurfaceVariant}
+                  onPress={() => router.push('/(tabs)/inspections')}
+                />
+                <Stage
+                  icon="play-circle-outline"
+                  label="Em andamento"
+                  count={stages.inProgress}
+                  tone={semantic.warning.fg}
+                  onPress={() => router.push('/(tabs)/inspections')}
+                />
+                <Stage
+                  icon="hourglass-outline"
+                  label="Em análise"
+                  count={stages.inReview}
+                  tone={semantic.info.fg}
+                  onPress={() => router.push('/(tabs)/inspections')}
+                />
+                <Stage
+                  icon="checkmark-circle-outline"
+                  label="Concluídas"
+                  count={stages.done}
+                  tone={semantic.success.fg}
+                  onPress={() => router.push('/(tabs)/inspections')}
+                />
+              </View>
+            </Card>
+
             {/* Continuar inspeção */}
             {highlight ? (
               <View style={{ gap: spacing.sm }}>
@@ -147,6 +197,36 @@ export default function DashboardScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/** Uma etapa do ciclo, com quantas inspeções estão nela. */
+function Stage({
+  icon,
+  label: text,
+  count,
+  tone,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  count: number;
+  tone: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${text}: ${count}`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.stage, pressed && styles.pressed]}
+    >
+      <Ionicons name={icon} size={20} color={tone} />
+      <Text style={[type.headlineSm, { color: tone }]}>{count}</Text>
+      <Text style={[type.bodyMd, styles.stageLabel]} numberOfLines={2}>
+        {text}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -187,6 +267,18 @@ const styles = StyleSheet.create({
   muted: { color: colors.onSurfaceVariant },
   badgeRow: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  stageRow: { flexDirection: 'row', gap: spacing.xs },
+  stage: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: 4,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceContainerLow,
+  },
+  stageLabel: { color: colors.onSurfaceVariant, textAlign: 'center', fontSize: 11 },
+
   quickRow: { flexDirection: 'row', gap: spacing.sm },
   quick: {
     flex: 1,

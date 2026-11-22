@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { useSync } from '../../../src/offline/SyncContext';
 import { Button, Card, Field } from '../../../src/components/ui';
 import { ScreenHeader } from '../../../src/components/Header';
 import { label, priorityTone } from '../../../src/labels';
+import { notify } from '../../../src/dialogs';
 import { colors, radius, semantic, spacing, touchTarget } from '../../../src/theme/tokens';
 import { type } from '../../../src/theme/typography';
 import type { NonConformitySeverity } from '../../../src/api/types';
@@ -46,7 +47,7 @@ export default function NonConformityScreen() {
           severity,
         },
       });
-      Alert.alert(
+      notify(
         'Não conformidade registrada',
         online
           ? 'O supervisor verá o registro na revisão desta inspeção.'
