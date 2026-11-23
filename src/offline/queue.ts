@@ -1,130 +1,37 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AnswerUpsertRequest, CreateNonConformityRequest } from '../api/types';
-
-/**
- * Fila de mutações pendentes.
- *
- * Inspeção de campo acontece em subsolo, casa de máquinas e área rural — assumir
- * conectividade seria assumir errado. Toda escrita é enfileirada primeiro e
- * drenada quando houver rede, na ordem em que foi criada: a ordem importa porque
- * `submit` só pode chegar ao servidor depois das respostas que ele valida.
- */
-
-const STORAGE_KEY = 'fieldops.syncQueue.v1';
+import { getDatabase } from './database';
 
 export type QueuedOperation =
   | { kind: 'start'; inspectionId: string }
   | { kind: 'answer'; inspectionId: string; answer: AnswerUpsertRequest }
-  | {
-      kind: 'evidence';
-      inspectionId: string;
-      photo: { uri: string; name: string; mimeType: string };
-      description?: string | null;
-      latitude?: number | null;
-      longitude?: number | null;
-    }
+  | { kind: 'evidence'; inspectionId: string; photo: { uri: string; name: string; mimeType: string }; description?: string | null; latitude?: number | null; longitude?: number | null }
   | { kind: 'nonConformity'; inspectionId: string; body: CreateNonConformityRequest }
   | { kind: 'submit'; inspectionId: string };
 
-export interface QueueEntry {
-  id: string;
-  operation: QueuedOperation;
-  createdAt: string;
-  attempts: number;
-  lastError?: string;
-}
+export interface QueueEntry { id: string; operation: QueuedOperation; createdAt: string; attempts: number; lastError?: string }
 
-/** Rótulo curto para a tela de sincronização. */
-export function describeOperation(op: QueuedOperation): string {
-  switch (op.kind) {
-    case 'start':
-      return 'Início de inspeção';
-    case 'answer':
-      return 'Resposta do checklist';
-    case 'evidence':
-      return 'Evidência fotográfica';
-    case 'nonConformity':
-      return 'Não conformidade';
-    case 'submit':
-      return 'Envio da inspeção';
-  }
-}
-
-export function operationIcon(op: QueuedOperation): string {
-  switch (op.kind) {
-    case 'start':
-      return 'play-circle-outline';
-    case 'answer':
-      return 'checkbox-outline';
-    case 'evidence':
-      return 'camera-outline';
-    case 'nonConformity':
-      return 'warning-outline';
-    case 'submit':
-      return 'cloud-upload-outline';
-  }
-}
-
-async function readAll(): Promise<QueueEntry[]> {
-  try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as QueueEntry[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-async function writeAll(entries: QueueEntry[]): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-}
+export function describeOperation(op: QueuedOperation): string { switch (op.kind) { case 'start': return 'Início de inspeção'; case 'answer': return 'Resposta do checklist'; case 'evidence': return 'Evidência fotográfica'; case 'nonConformity': return 'Não conformidade'; case 'submit': return 'Envio da inspeção'; } }
+export function operationIcon(op: QueuedOperation): string { switch (op.kind) { case 'start': return 'play-circle-outline'; case 'answer': return 'checkbox-outline'; case 'evidence': return 'camera-outline'; case 'nonConformity': return 'warning-outline'; case 'submit': return 'cloud-upload-outline'; } }
 
 export const queue = {
-  list: readAll,
-
+  async list(): Promise<QueueEntry[]> {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{ id: string; operation: string; created_at: string; attempts: number; last_error: string | null }>('SELECT id, operation, created_at, attempts, last_error FROM sync_queue ORDER BY created_at, id');
+    return rows.map((row) => ({ id: row.id, operation: JSON.parse(row.operation) as QueuedOperation, createdAt: row.created_at, attempts: row.attempts, lastError: row.last_error ?? undefined }));
+  },
   async enqueue(operation: QueuedOperation): Promise<QueueEntry> {
-    const entries = await readAll();
-    const entry: QueueEntry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      operation,
-      createdAt: new Date().toISOString(),
-      attempts: 0,
-    };
-
-    // Uma resposta substitui a anterior do mesmo item: só o último valor
-    // digitado interessa, e sem isso a fila cresceria a cada tecla.
-    const deduped =
-      operation.kind === 'answer'
-        ? entries.filter(
-            (e) =>
-              !(
-                e.operation.kind === 'answer' &&
-                e.operation.inspectionId === operation.inspectionId &&
-                e.operation.answer.inspectionItemId === operation.answer.inspectionItemId
-              ),
-          )
-        : entries;
-
-    await writeAll([...deduped, entry]);
+    const db = await getDatabase();
+    const entry: QueueEntry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, operation, createdAt: new Date().toISOString(), attempts: 0 };
+    await db.withTransactionAsync(async () => {
+      if (operation.kind === 'answer') {
+        const previous = await db.getAllAsync<{ id: string }>("SELECT id FROM sync_queue WHERE json_extract(operation, '$.kind') = 'answer' AND json_extract(operation, '$.inspectionId') = ? AND json_extract(operation, '$.answer.inspectionItemId') = ?", operation.inspectionId, operation.answer.inspectionItemId);
+        for (const row of previous) await db.runAsync('DELETE FROM sync_queue WHERE id = ?', row.id);
+      }
+      await db.runAsync('INSERT INTO sync_queue (id, operation, created_at, attempts) VALUES (?, ?, ?, 0)', entry.id, JSON.stringify(operation), entry.createdAt);
+    });
     return entry;
   },
-
-  async remove(id: string): Promise<QueueEntry[]> {
-    const entries = await readAll();
-    const next = entries.filter((e) => e.id !== id);
-    await writeAll(next);
-    return next;
-  },
-
-  async markFailure(id: string, error: string): Promise<QueueEntry[]> {
-    const entries = await readAll();
-    const next = entries.map((e) =>
-      e.id === id ? { ...e, attempts: e.attempts + 1, lastError: error } : e,
-    );
-    await writeAll(next);
-    return next;
-  },
-
-  async clear(): Promise<void> {
-    await AsyncStorage.removeItem(STORAGE_KEY);
-  },
+  async remove(id: string): Promise<QueueEntry[]> { const db = await getDatabase(); await db.runAsync('DELETE FROM sync_queue WHERE id = ?', id); return queue.list(); },
+  async markFailure(id: string, error: string): Promise<QueueEntry[]> { const db = await getDatabase(); await db.runAsync('UPDATE sync_queue SET attempts = attempts + 1, last_error = ? WHERE id = ?', error, id); return queue.list(); },
+  async clear(): Promise<void> { const db = await getDatabase(); await db.runAsync('DELETE FROM sync_queue'); },
 };
