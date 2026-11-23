@@ -193,11 +193,11 @@ planejamento e a revisão ficam na interface administrativa.
 Inspeção acontece em subsolo, casa de máquinas e área rural. Assumir conectividade seria assumir
 errado, então:
 
-- **Toda escrita passa por uma fila** (`src/offline/queue.ts`), gravada em `AsyncStorage` e drenada
+- **Toda escrita passa por uma fila** (`src/offline/queue.ts`), gravada em SQLite (`fieldops.db`) e drenada
   na ordem de criação — a ordem importa, porque `submit` só pode chegar depois das respostas que o
   servidor valida.
 - **Respostas são deduplicadas por item**: digitar não infla a fila, e o último valor é o que sobe.
-- **Leitura tem cache** (`src/offline/cache.ts`): abrir um checklist sem sinal mostra o conteúdo
+- **Leitura tem cache SQLite** (`src/offline/cache.ts`): abrir um checklist sem sinal mostra o conteúdo
   guardado, em vez de uma tela de erro.
 - **A fila drena sozinha** quando a rede volta (`NetInfo`), sem o técnico precisar lembrar.
 - **Falha 4xx permanente sai da fila** (operação inválida — item já respondido, inspeção já enviada),
