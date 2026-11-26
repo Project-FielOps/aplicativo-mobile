@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { equipment as equipmentApi, inspections as inspectionsApi } from '../../../src/api/endpoints';
 import { useAsync } from '../../../src/hooks/useAsync';
 import { useSync } from '../../../src/offline/SyncContext';
+import { getEquipment, getInspection } from '../../../src/offline/repository';
+import { localState } from '../../../src/offline/overlay';
 import { useVerification } from '../../../src/inspection/verification';
 import { Badge, Button, Card, DataRow, ErrorState, LoadingState } from '../../../src/components/ui';
 import { ScreenHeader } from '../../../src/components/Header';
@@ -19,15 +21,13 @@ const OPEN_STATES: ReadonlyArray<string> = ['ASSIGNED', 'IN_PROGRESS', 'REJECTED
 export default function InspectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { online, enqueue } = useSync();
+  const { enqueue, pending } = useSync();
   const [starting, setStarting] = useState(false);
 
   const load = useCallback(async () => {
-    const inspection = await inspectionsApi.get(id);
+    const { value: inspection } = await getInspection(id);
     // O detalhe traz só o nome do ativo; a ficha técnica exige o cadastro.
-    const asset = inspection.equipmentId
-      ? await equipmentApi.get(inspection.equipmentId).catch(() => null)
-      : null;
+    const asset = inspection.equipmentId ? await getEquipment(inspection.equipmentId) : null;
     return { inspection, asset };
   }, [id]);
 
@@ -41,13 +41,12 @@ export default function InspectionDetailScreen() {
     if (!inspection) return;
     setStarting(true);
     try {
-      if (online) {
-        await inspectionsApi.start(inspection.id);
-      } else {
-        // Offline: enfileira e segue para o checklist. A inspeção só muda de
-        // estado no servidor quando a rede voltar, mas o técnico não fica parado.
-        await enqueue({ kind: 'start', inspectionId: inspection.id });
-      }
+      // Sempre pela outbox (offline-first): sobe na hora se houver rede, senão quando ela
+      // voltar. Reprovada exige reabertura explícita para correção antes de editar.
+      await enqueue({
+        kind: inspection.status === 'REJECTED' ? 'reopen' : 'start',
+        inspectionId: inspection.id,
+      });
       router.push(`/inspection/${inspection.id}/checklist`);
     } catch (e) {
       notify('Não foi possível iniciar', e instanceof Error ? e.message : 'Tente novamente.');
@@ -56,8 +55,9 @@ export default function InspectionDetailScreen() {
     }
   };
 
-  const running = inspection?.status === 'IN_PROGRESS';
-  const canWork = inspection ? OPEN_STATES.includes(inspection.status) : false;
+  const local = inspection ? localState(inspection.status, inspection.id, pending) : null;
+  const running = local?.localStatus === 'IN_PROGRESS';
+  const canWork = inspection ? OPEN_STATES.includes(inspection.status) && !local?.pendingSubmit : false;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -212,7 +212,13 @@ export default function InspectionDetailScreen() {
           <View style={styles.footer}>
             {canWork ? (
               <Button
-                title={running ? 'Continuar Checklist' : 'Iniciar Inspeção Técnica'}
+                title={
+                  running
+                    ? 'Continuar Checklist'
+                    : inspection.status === 'REJECTED'
+                      ? 'Reabrir para correção'
+                      : 'Iniciar Inspeção Técnica'
+                }
                 icon={running ? 'list-outline' : 'play'}
                 onPress={running ? () => router.push(`/inspection/${inspection.id}/checklist`) : start}
                 loading={starting}

@@ -8,7 +8,8 @@ import {
   inspections as inspectionsApi,
   nonConformities as ncApi,
 } from '../../../src/api/endpoints';
-import { cache, withCache } from '../../../src/offline/cache';
+import { getInspection } from '../../../src/offline/repository';
+import { localState, queuedPhotosFor } from '../../../src/offline/overlay';
 import { useSync } from '../../../src/offline/SyncContext';
 import { useAsync } from '../../../src/hooks/useAsync';
 import { Badge, Button, Card, ErrorState, LoadingState } from '../../../src/components/ui';
@@ -28,11 +29,7 @@ export default function SummaryScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
-    const detail = await withCache(
-      () => inspectionsApi.get(id),
-      () => cache.getInspection(id),
-      (d) => cache.putInspection(d),
-    );
+    const detail = await getInspection(id);
     // Evidências e NCs são complementares: se a rede falhar, o resumo ainda
     // serve para conferir as respostas.
     const [photos, ncs] = await Promise.all([
@@ -74,19 +71,15 @@ export default function SummaryScreen() {
    * existe resposta persistida para vinculá-las.
    */
   const evidenceFor = (itemId: string) =>
-    pending.filter(
-      (e) =>
-        e.operation.kind === 'evidence' &&
-        e.operation.inspectionId === id &&
-        e.operation.description?.includes(itemId),
-    ).length;
+    queuedPhotosFor(pending, id, itemId);
 
   const issues = blockingIssues(items, queuedAnswers, evidenceFor);
   const queuedPhotos = pending.filter(
     (e) => e.operation.kind === 'evidence' && e.operation.inspectionId === id,
   ).length;
   const totalPhotos = (data?.photos.length ?? 0) + queuedPhotos;
-  const editable = inspection ? EDITABLE.includes(inspection.status) : false;
+  const local = inspection ? localState(inspection.status, inspection.id, pending) : null;
+  const editable = local ? local.localStatus === 'IN_PROGRESS' && !local.pendingSubmit : false;
 
   const submit = async () => {
     if (issues.length > 0) {

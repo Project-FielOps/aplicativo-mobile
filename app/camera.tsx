@@ -18,7 +18,11 @@ import { type } from '../src/theme/typography';
  * localização é melhor esforço; sem sinal de GPS a foto ainda é registrada.
  */
 export default function CameraScreen() {
-  const { inspectionId, itemId } = useLocalSearchParams<{ inspectionId: string; itemId?: string }>();
+  const { inspectionId, itemId, ncOperationId } = useLocalSearchParams<{
+    inspectionId: string;
+    itemId?: string;
+    ncOperationId?: string;
+  }>();
   const router = useRouter();
   const { enqueue, online } = useSync();
 
@@ -60,10 +64,6 @@ export default function CameraScreen() {
         // Sem GPS a evidência continua válida; só perde a coordenada.
       }
 
-      // O item vai na descrição porque a API só aceita vincular evidência a uma
-      // resposta já persistida (responseId), e offline ela ainda não existe.
-      const tag = itemId ? `[item:${itemId}] ` : '';
-
       await enqueue({
         kind: 'evidence',
         inspectionId,
@@ -72,7 +72,11 @@ export default function CameraScreen() {
           name: `evidencia-${Date.now()}.jpg`,
           mimeType: 'image/jpeg',
         },
-        description: `${tag}${description.trim()}`.trim() || null,
+        // Offline ainda não existem ids do servidor: a API liga a foto à resposta do item
+        // ou à NC criada no aparelho pelo operationId dela.
+        itemId: itemId ?? null,
+        nonConformityOperationId: ncOperationId ?? null,
+        description: description.trim() || null,
         latitude,
         longitude,
       });
