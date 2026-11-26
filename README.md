@@ -160,8 +160,10 @@ Para apontar para outro ambiente, defina a URL completa:
 EXPO_PUBLIC_API_URL=https://api.suaempresa.com/api/v1 npm start
 ```
 
-**Produção (AWS)**: o Nginx da EC2 do painel encaminha `/api/` para a API, então a URL é
-`http://<ip-publico-da-ec2>/api/v1`. Copie `.env.example` para `.env` e ajuste o IP em `eas.json`.
+**Produção (AWS)**: a API não é exposta direto (a porta 8080 da EC2 do backend só aceita a EC2 do
+painel). O app fala com o Nginx da EC2 do painel, que encaminha `/api/` para a API:
+`http://98.83.4.152/api/v1` — já configurado nos perfis do `eas.json`. Para rodar no Expo Go contra
+a AWS: `cp .env.example .env && npm start`.
 
 ### Build Android (APK)
 
