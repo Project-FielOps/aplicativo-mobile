@@ -98,7 +98,11 @@ export const evidence = {
     photo: { uri: string; name: string; mimeType: string },
     meta: {
       responseId?: string | null;
+      inspectionItemId?: string | null;
       nonConformityId?: string | null;
+      nonConformityOperationId?: string | null;
+      /** operationId do aparelho: o reenvio devolve a mesma evidência, sem duplicar. */
+      operationId?: string | null;
       description?: string | null;
       latitude?: number | null;
       longitude?: number | null;
@@ -115,6 +119,9 @@ export const evidence = {
     const query: Record<string, string | number | undefined> = {};
     if (meta.responseId) query.responseId = meta.responseId;
     if (meta.nonConformityId) query.nonConformityId = meta.nonConformityId;
+    if (meta.inspectionItemId) query.inspectionItemId = meta.inspectionItemId;
+    if (meta.nonConformityOperationId) query.nonConformityOperationId = meta.nonConformityOperationId;
+    if (meta.operationId) query.operationId = meta.operationId;
     if (meta.description) query.description = meta.description;
     if (meta.latitude != null) query.latitude = meta.latitude;
     if (meta.longitude != null) query.longitude = meta.longitude;
@@ -162,4 +169,25 @@ export const equipment = {
 
   bySite: (siteId: string) =>
     request<PageResponse<Equipment>>(`/sites/${siteId}/equipment`, { query: { size: 100 } }),
+};
+
+// --- Sincronização mobile ----------------------------------------------------
+
+export interface SyncChange {
+  sequence: number;
+  entityType: 'Inspection' | 'InspectionResponse' | 'NonConformity' | string;
+  entityId: string;
+  operationId: string | null;
+  payload: { event?: string; status?: string } | null;
+  createdAt: string;
+}
+
+export const mobileSync = {
+  push: (deviceId: string, operations: unknown[]) =>
+    request<{ results: { operationId: string; status: string; code: string | null }[] }>('/mobile/sync/push', {
+      method: 'POST',
+      body: { deviceId, operations },
+    }),
+  pull: (cursor: string, limit = 100) =>
+    request<{ changes: SyncChange[]; nextCursor: string }>('/mobile/sync/pull', { query: { cursor, limit } }),
 };

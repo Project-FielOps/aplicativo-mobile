@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSync } from '../../src/offline/SyncContext';
+import { listMine } from '../../src/offline/repository';
+import { withLocalState } from '../../src/offline/overlay';
 import { inspections as inspectionsApi } from '../../src/api/endpoints';
 import { useAsync } from '../../src/hooks/useAsync';
 import { Badge, Card, EmptyState, ErrorState, LoadingState } from '../../src/components/ui';
@@ -34,17 +36,17 @@ const PENDING: ReadonlyArray<string> = ['ASSIGNED', 'REJECTED'];
 export default function InspectionsScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { online } = useSync();
+  const { online, pending } = useSync();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [search, setSearch] = useState('');
 
   const load = useCallback(
-    () => inspectionsApi.list({ technicianId: user?.id, size: 100 }),
+    () => listMine(user?.id),
     [user?.id],
   );
   const { data, loading, error, reload } = useAsync(load, [user?.id]);
 
-  const all = useMemo(() => data?.content ?? [], [data]);
+  const all = useMemo(() => withLocalState(data?.content ?? [], pending), [data, pending]);
 
   const counts = useMemo(
     () => ({
