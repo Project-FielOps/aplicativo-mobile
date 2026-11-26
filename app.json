@@ -54,7 +54,15 @@
           "locationAlwaysAndWhenInUsePermission": "O FieldOps registra a localização da evidência para comprovar a inspeção em campo."
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
     "web": {
       "favicon": "./assets/favicon.png"

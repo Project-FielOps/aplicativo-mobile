@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSync } from '../../src/offline/SyncContext';
+import { listMine } from '../../src/offline/repository';
 import {
   inspections as inspectionsApi,
   sites as sitesApi,
@@ -80,11 +81,7 @@ export default function AgendaScreen() {
   const { online, pending } = useSync();
 
   const load = useCallback(async () => {
-    const page = await inspectionsApi.list({
-      technicianId: user?.id,
-      size: 100,
-      sort: 'scheduledFor,asc',
-    });
+    const page = await listMine(user?.id);
 
     // Os locais carregam junto porque a agenda promete levar o técnico até o
     // ativo: sem coordenada não há rota, e descobrir isso só ao tocar no botão

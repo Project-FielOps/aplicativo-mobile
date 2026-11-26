@@ -160,6 +160,15 @@ Para apontar para outro ambiente, defina a URL completa:
 EXPO_PUBLIC_API_URL=https://api.suaempresa.com/api/v1 npm start
 ```
 
+**Produção (AWS)**: o Nginx da EC2 do painel encaminha `/api/` para a API, então a URL é
+`http://<ip-publico-da-ec2>/api/v1`. Copie `.env.example` para `.env` e ajuste o IP em `eas.json`.
+
+### Build Android (APK)
+
+```bash
+npx eas build --platform android --profile preview   # gera o APK instalável
+```
+
 > **Firewall:** o Windows costuma bloquear conexões de entrada nas portas 8080 (API) e 8081 (Metro).
 > Se o celular não conectar, libere as duas para a rede privada.
 
@@ -190,18 +199,39 @@ planejamento e a revisão ficam na interface administrativa.
 
 ## Offline primeiro
 
-Inspeção acontece em subsolo, casa de máquinas e área rural. Assumir conectividade seria assumir
-errado, então:
+Inspeção acontece em subsolo, casa de máquinas e área rural. O app trata a rede como opcional, e o
+que o técnico faz offline **chega ao banco principal (PostgreSQL na AWS) exatamente uma vez**:
 
-- **Toda escrita passa por uma fila** (`src/offline/queue.ts`), gravada em SQLite (`fieldops.db`) e drenada
-  na ordem de criação — a ordem importa, porque `submit` só pode chegar depois das respostas que o
-  servidor valida.
-- **Respostas são deduplicadas por item**: digitar não infla a fila, e o último valor é o que sobe.
-- **Leitura tem cache SQLite** (`src/offline/cache.ts`): abrir um checklist sem sinal mostra o conteúdo
-  guardado, em vez de uma tela de erro.
-- **A fila drena sozinha** quando a rede volta (`NetInfo`), sem o técnico precisar lembrar.
-- **Falha 4xx permanente sai da fila** (operação inválida — item já respondido, inspeção já enviada),
-  senão ela entupiria para sempre. Falha de rede ou 5xx permanece e é tentada de novo.
+- **Outbox no SQLite** (`src/offline/queue.ts`, `fieldops.db`, migrações por `PRAGMA user_version`):
+  toda escrita (início, reabertura, resposta, NC, foto, envio) é gravada antes da rede, sobrevive a
+  reinício e é **isolada por técnico** no aparelho.
+- **Idempotência no cliente**: cada operação nasce com um `operationId` (UUID) e um `deviceId`
+  persistente. Respostas, início, NC e envio vão em lote para `POST /mobile/sync/push`; fotos vão pelo
+  upload com o mesmo `operationId`. Reenviar algo já aplicado devolve `ALREADY_APPLIED` — sem
+  duplicar nada.
+- **Ordem por fase** (`src/offline/engine.ts`): início/reabertura → respostas → NCs → fotos → envio.
+  A foto encontra a resposta e a NC no servidor (vínculo por `inspectionItemId` /
+  `nonConformityOperationId`), e o envio só sai depois de tudo o que a API valida.
+- **Falhas**: falha de rede/5xx mantém a fila e reagenda (1s, 2s, 4s, 8s, 16s com jitter, até 5
+  tentativas automáticas; a volta da rede e "Sincronizar agora" sempre disparam). Recusa do servidor
+  **nunca é descartada sozinha**: vira `conflito`, aparece na aba Sincronização com o motivo, bloqueia
+  o restante daquela inspeção e o técnico escolhe "Tentar de novo" ou "Descartar".
+- **Fotos não se perdem**: a câmera grava no cache; a foto é copiada para o diretório de documentos e
+  só é apagada depois do upload confirmado.
+- **Estado visível**: o status oficial vem do servidor; o aparelho mostra por cima o que está na fila
+  (respostas preenchidas, "aguardando sincronização", conflitos) sem trocar o status oficial (ADR-008).
+- **Carteira pronta para o campo** (`src/offline/refresh.ts`): após cada sincronização o app lê o feed
+  `GET /mobile/sync/pull` por cursor (atribuição, cancelamento, revisão feitas na web) e baixa detalhe,
+  checklist e ativo de cada inspeção em aberto — dá para executar sem ter aberto a inspeção antes.
+  O QR Code é conferido contra o ativo baixado quando não há rede.
+
+### Testes do offline
+
+```bash
+npm test          # motor de sync: ordem, idempotência, falha de rede, conflito, backoff, overlay
+# E2E contra a API real + PostgreSQL (rede caindo no meio do envio, reenvio, pull, reabertura):
+cd ../API && ./scripts/e2e/run-with-api.sh --reset -- npm --prefix ../aplicativo-mobile run test:e2e
+```
 
 ## Sessão
 
@@ -243,9 +273,10 @@ src/
 
 ## Limites conhecidos
 
-- **Evidência por item**: a API só vincula evidência a uma resposta já persistida (`responseId`), que
-  offline ainda não existe. A foto é enviada vinculada à inspeção, com o item identificado na
-  descrição (`[item:<id>]`). Um `inspectionItemId` no endpoint de evidência resolveria isso melhor.
+- **Conflitos não têm resolução assistida**: o app preserva e sinaliza; decidir entre o valor local e o
+  do servidor é do técnico (tentar de novo/descartar), como prevê a ADR-008.
+- **HTTP sem TLS na AWS Academy**: o build Android libera tráfego HTTP (`usesCleartextTraffic`) porque a
+  EC2 não tem certificado. Com HTTPS no servidor, remova essa opção do `app.json`.
 - **Histórico do ativo**: a API filtra inspeções por local, não por equipamento; buscamos o local e
   refinamos no cliente. Correto porque um equipamento pertence a um único local, mas um filtro
   `equipmentId` seria mais direto.

@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSync } from '../../src/offline/SyncContext';
+import { listMine } from '../../src/offline/repository';
+import { withLocalState } from '../../src/offline/overlay';
 import { inspections as inspectionsApi } from '../../src/api/endpoints';
 import { useAsync } from '../../src/hooks/useAsync';
 import { Badge, Button, Card, ErrorState, LoadingState, ProgressBar } from '../../src/components/ui';
@@ -43,12 +45,12 @@ export default function DashboardScreen() {
   // O endpoint /dashboard/summary é restrito a ADMIN/SUPERVISOR, então o
   // progresso do técnico é derivado da própria carteira de inspeções.
   const load = useCallback(
-    () => inspectionsApi.list({ technicianId: user?.id, size: 100 }),
+    () => listMine(user?.id),
     [user?.id],
   );
   const { data, loading, error, reload } = useAsync(load, [user?.id]);
 
-  const all = data?.content ?? [];
+  const all = withLocalState(data?.content ?? [], pending);
   const today = all.filter((i) => isToday(i.scheduledFor));
   const completedToday = today.filter((i) => DONE.includes(i.status)).length;
   const inProgress = all.find((i) => i.status === 'IN_PROGRESS');

@@ -3,8 +3,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { inspections as inspectionsApi } from '../../../src/api/endpoints';
-import { cache, withCache } from '../../../src/offline/cache';
+import { getInspection } from '../../../src/offline/repository';
+import { localState, queuedPhotosFor, withPendingAnswers } from '../../../src/offline/overlay';
 import { useSync } from '../../../src/offline/SyncContext';
 import { useAsync } from '../../../src/hooks/useAsync';
 import { Badge, Button, Card, ErrorState, LoadingState, ProgressBar } from '../../../src/components/ui';
@@ -14,8 +14,6 @@ import { currentAnswer, groupSections, isAnswered } from '../../../src/inspectio
 import { colors, radius, semantic, spacing } from '../../../src/theme/tokens';
 import { type } from '../../../src/theme/typography';
 import type { AnswerUpsertRequest, ItemSnapshot } from '../../../src/api/types';
-
-const EDITABLE: ReadonlyArray<string> = ['ASSIGNED', 'IN_PROGRESS', 'REJECTED'];
 
 export default function ChecklistScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,16 +25,16 @@ export default function ChecklistScreen() {
 
   const load = useCallback(
     () =>
-      withCache(
-        () => inspectionsApi.get(id),
-        () => cache.getInspection(id),
-        (detail) => cache.putInspection(detail),
-      ),
+      getInspection(id),
     [id],
   );
 
   const { data, loading, error, reload } = useAsync(load, [id]);
-  const inspection = data?.value ?? null;
+  const inspection = useMemo(
+    () => (data?.value ? withPendingAnswers(data.value, pending) : null),
+    [data, pending],
+  );
+  const local = inspection ? localState(inspection.status, inspection.id, pending) : null;
   const fromCache = data?.fromCache ?? false;
 
   const sections = useMemo(() => groupSections(inspection?.items ?? []), [inspection]);
@@ -46,17 +44,14 @@ export default function ChecklistScreen() {
     isAnswered(item, currentAnswer(item, drafts[item.id])),
   ).length;
 
-  const editable = inspection ? EDITABLE.includes(inspection.status) : false;
+  // Editável pelo status visto no aparelho (início/reabertura ainda na fila contam), e não
+  // depois que o técnico concluiu, mesmo que o envio ainda aguarde a rede.
+  const editable = local ? local.localStatus === 'IN_PROGRESS' && !local.pendingSubmit : false;
 
   /** Fotos ainda na fila para este item, para o contador do painel vermelho. */
   const queuedPhotos = useCallback(
     (itemId: string) =>
-      pending.filter(
-        (e) =>
-          e.operation.kind === 'evidence' &&
-          e.operation.inspectionId === id &&
-          e.operation.description?.includes(itemId),
-      ).length,
+      queuedPhotosFor(pending, id, itemId),
     [pending, id],
   );
 
@@ -128,7 +123,11 @@ export default function ChecklistScreen() {
           <View style={styles.progressBar}>
             <View style={styles.progressTop}>
               <Text style={[type.headlineSm, { flex: 1 }]}>
-                {inspection.status === 'IN_PROGRESS' ? 'Inspeção em andamento' : inspection.title}
+                {local?.pendingSubmit
+                  ? 'Concluída · aguardando sincronização'
+                  : local?.localStatus === 'IN_PROGRESS'
+                    ? 'Inspeção em andamento'
+                    : inspection.title}
               </Text>
               <View style={styles.countBadge}>
                 <Text style={[type.dataMono, { color: colors.onSecondaryContainer }]}>
@@ -157,7 +156,9 @@ export default function ChecklistScreen() {
               <View style={styles.lockedBox}>
                 <Ionicons name="lock-closed-outline" size={18} color={colors.onSurfaceVariant} />
                 <Text style={[type.bodyMd, styles.muted, { flex: 1 }]}>
-                  Esta inspeção já foi enviada. O checklist está em modo somente leitura.
+                  {local?.pendingSubmit
+                    ? 'Inspeção concluída no aparelho. Ela sobe para o supervisor assim que houver conexão.'
+                    : 'Esta inspeção não está em execução. O checklist está em modo somente leitura.'}
                 </Text>
               </View>
             ) : null}

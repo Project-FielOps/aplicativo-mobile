@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { useSync } from '../../src/offline/SyncContext';
+import { confirm } from '../../src/dialogs';
 import { describeOperation, operationIcon } from '../../src/offline/queue';
 import { Badge, Button, Card, EmptyState } from '../../src/components/ui';
 import { BrandHeader } from '../../src/components/Header';
@@ -12,7 +13,7 @@ import { colors, radius, semantic, spacing } from '../../src/theme/tokens';
 import { type } from '../../src/theme/typography';
 
 export default function SyncScreen() {
-  const { online, pending, syncing, lastSyncAt, lastError, sync } = useSync();
+  const { online, pending, syncing, lastSyncAt, lastError, sync, retry, discard } = useSync();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -74,17 +75,41 @@ export default function SyncScreen() {
                     Inspeção {entry.operation.inspectionId.slice(0, 8)}
                   </Text>
                   {entry.lastError ? (
-                    <Text style={[type.bodyMd, { color: semantic.warning.fg }]} numberOfLines={2}>
+                    <Text
+                      style={[type.bodyMd, { color: entry.state === 'conflict' ? semantic.danger.fg : semantic.warning.fg }]}
+                      numberOfLines={3}
+                    >
+                      {entry.state === 'conflict' ? 'Recusada: ' : ''}
                       {entry.lastError}
                       {entry.attempts > 1 ? ` (${entry.attempts} tentativas)` : ''}
                     </Text>
+                  ) : null}
+                  {entry.state === 'conflict' ? (
+                    <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: 4 }}>
+                      <Text accessibilityRole="button" onPress={() => void retry(entry.id)} style={[type.bodyMdMedium, { color: colors.primaryContainer }]}>
+                        Tentar de novo
+                      </Text>
+                      <Text
+                        accessibilityRole="button"
+                        onPress={() =>
+                          void confirm({
+                            title: 'Descartar operação',
+                            message: 'O que foi feito no aparelho nesta operação será perdido. Confirmar?',
+                            confirmText: 'Descartar',
+                          }).then((yes) => { if (yes) void discard(entry.id); })
+                        }
+                        style={[type.bodyMdMedium, { color: semantic.danger.fg }]}
+                      >
+                        Descartar
+                      </Text>
+                    </View>
                   ) : null}
                 </View>
 
                 <View
                   style={[
                     styles.queueDot,
-                    { backgroundColor: entry.lastError ? semantic.danger.fg : semantic.warning.fg },
+                    { backgroundColor: entry.state === 'conflict' ? semantic.danger.fg : semantic.warning.fg },
                   ]}
                 />
               </View>

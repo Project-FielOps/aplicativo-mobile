@@ -5,6 +5,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { equipment as equipmentApi } from '../src/api/endpoints';
+import { cache } from '../src/offline/cache';
+import { getEquipment } from '../src/offline/repository';
 import { HttpError, OfflineError } from '../src/api/client';
 import { verification } from '../src/inspection/verification';
 import { Badge, Button, Card, DataRow, Field } from '../src/components/ui';
@@ -55,6 +57,14 @@ export default function ScannerScreen() {
       const matches = !verifying || asset.id === expectedEquipmentId;
       setOutcome({ kind: 'found', asset, matches });
     } catch (e) {
+      // Offline: confere contra o ativo esperado, baixado junto com a carteira do técnico.
+      if (e instanceof OfflineError && expectedEquipmentId) {
+        const cached = await cache.getEquipment(expectedEquipmentId);
+        if (cached?.qrCode) {
+          setOutcome({ kind: 'found', asset: cached, matches: cached.qrCode === data.trim() });
+          return;
+        }
+      }
       const message =
         e instanceof OfflineError
           ? 'Sem conexão para consultar o ativo. Conecte-se e tente de novo.'
@@ -81,8 +91,8 @@ export default function ScannerScreen() {
   const fillExpectedCode = async () => {
     if (!expectedEquipmentId) return;
     try {
-      const asset = await equipmentApi.get(expectedEquipmentId);
-      if (asset.qrCode) setManualCode(asset.qrCode);
+      const asset = await getEquipment(expectedEquipmentId);
+      if (asset?.qrCode) setManualCode(asset.qrCode);
     } catch {
       setOutcome({ kind: 'error', message: 'Não foi possível consultar o ativo esperado.' });
     }

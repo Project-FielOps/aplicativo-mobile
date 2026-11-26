@@ -1,3 +1,4 @@
+import { HttpError, OfflineError } from './errors';
 import { API_BASE_URL } from './config';
 import type { ApiError, TokenResponse } from './types';
 
@@ -11,24 +12,7 @@ import type { ApiError, TokenResponse } from './types';
  * quando a sessão ainda podia ser salva.
  */
 
-export class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly body: ApiError | null,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'HttpError';
-  }
-}
-
-/** Falha de rede — o dispositivo está offline ou a API está inalcançável. */
-export class OfflineError extends Error {
-  constructor(message = 'Sem conexão com o servidor.') {
-    super(message);
-    this.name = 'OfflineError';
-  }
-}
+export { HttpError, OfflineError };
 
 type Tokens = { accessToken: string; refreshToken: string };
 

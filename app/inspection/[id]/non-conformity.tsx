@@ -37,7 +37,7 @@ export default function NonConformityScreen() {
     setSaving(true);
     setError('');
     try {
-      await enqueue({
+      const operationId = await enqueue({
         kind: 'nonConformity',
         inspectionId: id,
         body: {
@@ -53,7 +53,12 @@ export default function NonConformityScreen() {
           ? 'O supervisor verá o registro na revisão desta inspeção.'
           : 'Guardada no aparelho e enviada assim que a rede voltar.',
       );
-      router.back();
+      if (severity === 'CRITICAL' && operationId) {
+        // NC crítica exige foto para o envio: já leva o técnico à câmera, ligada a esta NC.
+        router.replace(`/camera?inspectionId=${id}&ncOperationId=${operationId}`);
+      } else {
+        router.back();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível registrar.');
     } finally {
