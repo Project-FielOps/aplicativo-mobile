@@ -40,7 +40,7 @@ const PENDING: ReadonlyArray<string> = ['ASSIGNED', 'REJECTED'];
 export default function DashboardScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { online, pending } = useSync();
+  const { online, pending, lastSyncAt } = useSync();
 
   // O endpoint /dashboard/summary é restrito a ADMIN/SUPERVISOR, então o
   // progresso do técnico é derivado da própria carteira de inspeções.
@@ -48,7 +48,8 @@ export default function DashboardScreen() {
     () => listMine(user?.id),
     [user?.id],
   );
-  const { data, loading, error, reload } = useAsync(load, [user?.id]);
+  // Recarrega depois de cada sincronização: o status oficial pode ter mudado no servidor.
+  const { data, loading, error, reload } = useAsync(load, [user?.id, lastSyncAt]);
 
   const all = withLocalState(data?.content ?? [], pending);
   const today = all.filter((i) => isToday(i.scheduledFor));

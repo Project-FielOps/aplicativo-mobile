@@ -78,7 +78,7 @@ function dayLabel(iso: string | null): string {
 export default function AgendaScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { online, pending } = useSync();
+  const { online, pending, lastSyncAt } = useSync();
 
   const load = useCallback(async () => {
     const page = await listMine(user?.id);
@@ -100,7 +100,8 @@ export default function AgendaScreen() {
     return { inspections: pendingOnes, sites };
   }, [user?.id]);
 
-  const { data, loading, error, reload } = useAsync(load, [user?.id]);
+  // Recarrega depois de cada sincronização: o status oficial pode ter mudado no servidor.
+  const { data, loading, error, reload } = useAsync(load, [user?.id, lastSyncAt]);
 
   const groups = useMemo(() => {
     const items = data?.inspections ?? [];

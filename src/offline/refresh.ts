@@ -38,9 +38,12 @@ export async function refreshFromServer(): Promise<{ changed: number }> {
   const list = await inspectionsApi.list({ technicianId: userId, size: 100 });
   await cache.putList(list.content);
   for (const summary of list.content) {
-    if (!OPEN.includes(summary.status) || changedInspections.has(summary.id)) continue;
-    const detail = await inspectionsApi.get(summary.id).catch(() => null);
-    if (detail) await cache.putInspection(detail);
+    if (!OPEN.includes(summary.status)) continue;
+    // O detalhe das que vieram pelo feed já foi baixado acima; o ativo (QR offline) ainda não.
+    if (!changedInspections.has(summary.id)) {
+      const detail = await inspectionsApi.get(summary.id).catch(() => null);
+      if (detail) await cache.putInspection(detail);
+    }
     if (summary.equipmentId) {
       const asset = await equipmentApi.get(summary.equipmentId).catch(() => null);
       if (asset) await cache.putEquipment(asset);

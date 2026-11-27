@@ -25,7 +25,7 @@ const EDITABLE: ReadonlyArray<string> = ['ASSIGNED', 'IN_PROGRESS', 'REJECTED'];
 export default function SummaryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { enqueue, pending, online } = useSync();
+  const { enqueue, pending, online , lastSyncAt } = useSync();
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
@@ -39,7 +39,7 @@ export default function SummaryScreen() {
     return { detail: detail.value, fromCache: detail.fromCache, photos, ncs };
   }, [id]);
 
-  const { data, loading, error, reload } = useAsync(load, [id]);
+  const { data, loading, error, reload } = useAsync(load, [id, lastSyncAt]);
   const inspection = data?.detail ?? null;
   const items = inspection?.items ?? [];
 
@@ -104,10 +104,11 @@ export default function SummaryScreen() {
       // Sempre pela fila: garante que o submit chegue depois das respostas e
       // das evidências que o servidor valida.
       await enqueue({ kind: 'submit', inspectionId: id });
+      // A confirmação real vem do servidor: a aba Sincronização mostra quando subiu.
       notify(
         'Inspeção concluída',
         online
-          ? 'Enviada para revisão do supervisor.'
+          ? 'Envio registrado. Ele chega ao supervisor assim que o servidor confirmar (acompanhe na aba Sincronização).'
           : 'Guardada no aparelho. Será enviada quando houver conexão.',
       );
       router.replace('/(tabs)/inspections');
