@@ -129,7 +129,7 @@ export default function SyncScreen() {
           icon="sync"
           onPress={() => void sync()}
           loading={syncing}
-          disabled={!online || pending.length === 0}
+          disabled={!online || syncing}
         />
 
         {!online ? (

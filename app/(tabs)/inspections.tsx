@@ -36,7 +36,7 @@ const PENDING: ReadonlyArray<string> = ['ASSIGNED', 'REJECTED'];
 export default function InspectionsScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { online, pending } = useSync();
+  const { online, pending, lastSyncAt } = useSync();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [search, setSearch] = useState('');
 
@@ -44,7 +44,8 @@ export default function InspectionsScreen() {
     () => listMine(user?.id),
     [user?.id],
   );
-  const { data, loading, error, reload } = useAsync(load, [user?.id]);
+  // Recarrega depois de cada sincronização: o status oficial pode ter mudado no servidor.
+  const { data, loading, error, reload } = useAsync(load, [user?.id, lastSyncAt]);
 
   const all = useMemo(() => withLocalState(data?.content ?? [], pending), [data, pending]);
 
