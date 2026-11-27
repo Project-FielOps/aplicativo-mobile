@@ -18,7 +18,7 @@ import type { AnswerUpsertRequest, ItemSnapshot } from '../../../src/api/types';
 export default function ChecklistScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { enqueue, pending, online } = useSync();
+  const { enqueue, pending, online , lastSyncAt } = useSync();
 
   const [drafts, setDrafts] = useState<Record<string, AnswerUpsertRequest>>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -29,7 +29,7 @@ export default function ChecklistScreen() {
     [id],
   );
 
-  const { data, loading, error, reload } = useAsync(load, [id]);
+  const { data, loading, error, reload } = useAsync(load, [id, lastSyncAt]);
   const inspection = useMemo(
     () => (data?.value ? withPendingAnswers(data.value, pending) : null),
     [data, pending],

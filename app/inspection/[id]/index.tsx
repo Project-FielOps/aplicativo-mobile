@@ -21,7 +21,7 @@ const OPEN_STATES: ReadonlyArray<string> = ['ASSIGNED', 'IN_PROGRESS', 'REJECTED
 export default function InspectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { enqueue, pending } = useSync();
+  const { enqueue, pending , lastSyncAt } = useSync();
   const [starting, setStarting] = useState(false);
 
   const load = useCallback(async () => {
@@ -31,7 +31,7 @@ export default function InspectionDetailScreen() {
     return { inspection, asset };
   }, [id]);
 
-  const { data, loading, error, reload } = useAsync(load, [id]);
+  const { data, loading, error, reload } = useAsync(load, [id, lastSyncAt]);
   const inspection = data?.inspection ?? null;
   const asset = data?.asset ?? null;
 
